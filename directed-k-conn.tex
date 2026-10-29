@@ -1,0 +1,997 @@
+%Planning to understand/simplify/improve. If you are interested, please contact me (Evangelos Kipouridis), I would be more than happy to do that collaboratively.
+%Licensed under CC BY 4.0
+\documentclass[11pt]{article}
+\usepackage[T1]{fontenc}
+\usepackage{lmodern}
+\usepackage{amsmath,amssymb,amsthm,mathtools}
+\usepackage[margin=1in]{geometry}
+\usepackage[hidelinks]{hyperref}
+\usepackage{enumitem}
+\setlist[enumerate]{itemsep=3pt,topsep=5pt}
+\setlength{\emergencystretch}{3em}
+\newtheorem{theorem}{Theorem}[section]
+\newtheorem{lemma}[theorem]{Lemma}
+\newtheorem{proposition}[theorem]{Proposition}
+\newtheorem{corollary}[theorem]{Corollary}
+\theoremstyle{definition}
+\newtheorem{definition}[theorem]{Definition}
+\newtheorem{algorithm}[theorem]{Algorithm}
+\theoremstyle{remark}
+\newtheorem{remark}[theorem]{Remark}
+\newcommand{\rev}[1]{#1^{\mathrm{rev}}}
+\newcommand{\PP}{\mathcal P}
+\newcommand{\OO}{\widetilde O}
+\newcommand{\one}{\mathbf 1}
+\newcommand{\Dom}{\operatorname{Dom}}
+\newcommand{\wt}{\omega}
+\newcommand{\dd}{\mathrm d}
+\title{Two deterministic algorithms for the\texorpdfstring{\\}{ }\(k\)-edge-connected components of a directed graph}
+\author{}
+\date{29 October 2026}
+\begin{document}
+\maketitle
+\begin{abstract}
+Let \(G\) be a strongly connected directed multigraph with \(n\) vertices and \(m\) edges, each of capacity one. The paths defining a component may use every vertex of \(G\). For each fixed integer \(k\ge4\), we give two deterministic algorithms. The first uses two trees toward a root in each orientation of the graph and takes
+\(\OO_k(mn^{1-2^{-\lceil(k-3)/2\rceil}})\) time.
+The second takes \(\OO_k(mn^{1-1/\lceil k/3\rceil})\) time.
+Its ingredients are a computation of maximal sets with outgoing cut value two, a local procedure that records vertex sets, and an assignment of queried vertices to recursive calls. We state the results imported from the literature and prove the constructions that combine them.
+Here \(\OO_k\) suppresses factors depending on \(k\) and powers of \(\log(n+2)\).
+\end{abstract}
+\tableofcontents
+
+\section{Definitions and results}
+\label{sec:definitions}
+
+Write \(G\) for the input graph and put \(n=|V(G)|\), \(m=|E(G)|\). A directed multigraph \(D=(V(D),E(D))\) has a finite vertex set and a finite edge set. An edge has an ordered pair of endpoints. Different edges may have the same endpoints. Every edge in this paper has capacity one. A directed path has no repeated vertex. Paths are edge-disjoint if no edge belongs to two of them. We delete edges whose endpoints coincide; such edges affect neither the paths nor the cuts used below. A graph is strongly connected if there is a directed path between every ordered pair of distinct vertices.
+
+For \(X,Y\subseteq V(D)\), let \(E_D(X,Y)\) be the edges with tail in \(X\) and head in \(Y\). The outdegree and indegree of \(v\) are denoted by \(d_D^+(v)\) and \(d_D^-(v)\). For \(S\subseteq V(D)\), define its outgoing cut, outgoing cut value, incoming cut value, and out-volume by
+\[
+ \delta_D^+(S)=E_D(S,V(D)\setminus S),\quad
+ c_D(S)=|\delta_D^+(S)|,\quad
+ c_D^-(S)=|E_D(V(D)\setminus S,S)|,\quad
+ w_D(S)=\sum_{v\in S}d_D^+(v).
+\]
+An \(h\)-out set is a nonempty proper vertex set \(S\) satisfying \(c_D(S)=h\). An \(h\)-in set satisfies \(c_D^-(S)=h\). The two sides of the cut are \(S\) and \(V(D)\setminus S\). The graph \(\rev D\) reverses every edge. Thus
+\begin{equation}
+ c_{\rev D}(V(D)\setminus S)=c_D(S).
+ \label{eq:reverse}
+\end{equation}
+The graph induced by a vertex set retains precisely the edges with both endpoints in that set. A weak component is a connected component after edge directions are ignored.
+
+For \(u\ne v\), let \(\lambda_D(u,v)\) be the maximum number of edge-disjoint directed paths from \(u\) to \(v\). Put \(\lambda_D(v,v)=+\infty\). The max-flow/min-cut theorem gives
+\begin{equation}
+ \lambda_D(u,v)=\min_{u\in S,\ v\notin S}c_D(S).
+ \label{eq:menger}
+\end{equation}
+For an integer \(j\ge1\), vertices \(u,v\) are \(j\)-edge-connected if
+\[
+ u=v\quad\text{or}\quad
+ \min\{\lambda_D(u,v),\lambda_D(v,u)\}\ge j.
+\]
+This is an equivalence relation: two vertices are related precisely when every set of outgoing cut value less than \(j\) contains both or neither. Its equivalence classes are the \(j\)-edge-connected components, and their partition is \(\PP_j(D)\). In particular, \(\PP_1(D)\) is the partition into strongly connected components. Paths in this definition are paths in \(D\); they may leave their component.
+
+A partition of a set consists of disjoint nonempty subsets with that union. Write \(P\preceq Q\) when every set of the partition \(P\) is contained in a set of the partition \(Q\). For \(T\) contained in the ground set, define
+\[
+ P|_T=\{B\cap T:B\in P,\ B\cap T\ne\varnothing\}.
+\]
+The common refinement of two partitions is the partition of their nonempty intersections. Refinement by a set \(S\) replaces every current set \(B\) by the nonempty sets among \(B\cap S\) and \(B\setminus S\). A set \(S\) splits \(B\) if both are nonempty. We call the partition being refined the current partition. A refinement preserves the \(j\)-edge-connected components if those components are never split.
+
+The integer \(k\) is fixed throughout a top-level computation. Recursive thresholds are denoted by \(j\), with \(1\le j\le k\). For a recursive input \(D\), put \(M=|V(D)|+|E(D)|\). Constants with subscript \(k\) may depend on \(k\). For a nonnegative function \(f\), the notation \(\OO_k(f)\) means \(O_k(f\log^{b_k}(M+2))\) for a constant \(b_k\) depending only on \(k\). Parallel multiplicities are capped at \(k\) in an initial \(O(m+n)\)-time scan, as justified in Section~\ref{sec:comparison}. Put \(M_0=m+n\) for the size of the initial input. The time model counts operations on words of \(O_k(\log(M_0+2))\) bits. Graphs and maintained partitions are assigned compact integer labels when needed; dictionary and sequence-tree heights are bounded using their current sizes.
+
+\begin{theorem}[Two-tree algorithm]
+\label{thm:slow}
+For a strongly connected directed multigraph \(G\) with \(n\ge2\) vertices and \(m\) edges, and every fixed \(k\ge4\), the two-tree algorithm computes \(\PP_k(G)\) deterministically in
+\[
+ \OO_k\!\left(mn^{1-\epsilon_k}\right),\qquad
+ \epsilon_k=2^{-\lceil(k-3)/2\rceil}.
+\]
+\end{theorem}
+
+\begin{theorem}[Algorithm with assigned requests]
+\label{thm:fast}
+Under the same input conditions, the algorithm with assigned requests computes \(\PP_k(G)\) deterministically in
+\[
+ \OO_k\!\left(mn^{1-e_k}\right),\qquad
+ e_k=\frac1{\lceil k/3\rceil}.
+\]
+\end{theorem}
+
+For \(k\le3\), the algorithms use the \(O(m+n)\)-time algorithms stated below. For a graph that is not strongly connected, an initial computation of strongly connected components gives the bound
+\(\OO_k(n+m n^{1-\epsilon_k})\) or
+\(\OO_k(n+m n^{1-e_k})\), respectively. Indeed, a path between two vertices of one strongly connected component cannot leave that component and return. Apply the algorithm to each induced strongly connected component; the sums of their vertex and edge counts are at most \(n\) and \(m\).
+
+\subsection{Requested vertices}
+\label{sec:requests}
+A recursive call needs exact component labels only on a specified set \(T\subseteq V(D)\). We call its elements requests and put \(a=|T|\). Vertices outside \(T\) remain in the graph and can occur on every path. Both algorithms return a partition \(Q_j(D,T)\) of \emph{all} vertices, satisfying
+\begin{equation}
+ \PP_j(D)\preceq Q_j(D,T),\qquad
+ Q_j(D,T)|_T=\PP_j(D)|_T.
+ \label{eq:request-contract}
+\end{equation}
+The first statement prohibits splitting any component, including a component with no request. The second requires exactness on the requests. Within each algorithm, \(Q_j(D,T)\) denotes the output of that algorithm, and every recursive call uses that algorithm. Initially \(T=V(G)\). If \(a\le1\), the one-set partition satisfies \eqref{eq:request-contract} and can be returned in \(O(M)\) time. When \(a\ge2\), a call first computes strongly connected components and treats them separately.
+
+\section{Results used from the literature}
+\label{sec:background}
+The following results are the external inputs to the algorithms. Subsequent sections prove the graph preparations, selections, local procedures, and recursions introduced here.
+
+\begin{proposition}[Base algorithms]
+\label{prop:bases}
+The partitions \(\PP_1(D),\PP_2(D),\PP_3(D)\) can be computed deterministically in \(O(M)\) time.
+\end{proposition}
+We use the strongly connected component algorithm for threshold one and the algorithms of~\cite{GIP20,GIK24} for thresholds two and three.
+
+\begin{proposition}[Decomposition into graphs with ordinary vertices]
+\label{prop:decomposition}
+In \(\OO(M)\) time one can construct strongly connected graphs \(H_i\), indexed by a finite set of indices \(i\), and sets \(O_i\subseteq V(H_i)\), with the following properties. Each input vertex has exactly one occurrence in the sets \(O_i\), called its ordinary occurrence. Vertices outside \(O_i\) are auxiliary vertices. Distinct vertices of \(O_i\) are mutually three-edge-connected in \(H_i\). The sum of \(|V(H_i)|+|E(H_i)|\) is \(O(M)\). For every integer \(\ell\ge4\), two input vertices are \(\ell\)-edge-connected if and only if their ordinary occurrences belong to the same \(H_i\) and are \(\ell\)-edge-connected there.
+\end{proposition}
+This is the all-threshold form of the 3-edge-connected-component decomposition in~\cite{GKKPP26}. The displayed Theorem~4 of that paper states threshold four. Its full version, Section~5.2, proves the form above: Theorem~46, Definition~47(3), Lemma~50, and the second phase preserve every threshold. We use this preservation, rather than any assertion that the induced subgraphs on the sets \(O_i\) preserve paths.
+
+For requests \(T\), let \(T_i\) be their ordinary occurrences in \(O_i\), identifying an input label with its ordinary occurrence when restricting a partition. Then
+\begin{equation}
+ \sum_i |T_i|=a,\qquad \sum_i\bigl(|V(H_i)|+|E(H_i)|\bigr)=O(M).
+ \label{eq:decomposition-sums}
+\end{equation}
+All vertices of \(O_i\) are retained in graph preparations. Only vertices of \(T_i\) issue local queries. At the initial call all ordinary vertices are requests; at a recursive call these sets can differ.
+
+\subsection{Local search}
+\label{sec:local}
+Fix distinct vertices \(x,y\), an integer \(h\ge2\), and assume \(\lambda_D(x,y)\ge h\). Let
+\[
+ \mathcal F_h(D;x,y)=\{S\subseteq V(D):x\in S,\ y\notin S,\ c_D(S)=h\}.
+\]
+If this family is nonempty, denote its intersection by \(M_h(D;x,y)\); otherwise write \(M_h(D;x,y)=\bot\), where \(\bot\) denotes absence of a set. The intersection belongs to the family. To prove this, recall cut submodularity:
+\begin{equation}
+ c_D(U\cap V)+c_D(U\cup V)\le c_D(U)+c_D(V).
+ \label{eq:submod}
+\end{equation}
+It follows by counting the contribution of each edge. If \(U,V\in\mathcal F_h(D;x,y)\), the two terms on the left are at least \(h\) by \eqref{eq:menger}. Both therefore equal \(h\). Repeated intersection proves the assertion. Thus \(M_h(D;x,y)\) is contained in every set of the family.
+
+\begin{proposition}[Local search; Proposition~6 of~\cite{GKKPP26}]
+\label{prop:local}
+For an integer \(\nu\ge1\), local search takes \((D,x,y,h,\nu)\) and costs \(O(2^{h-1}h!\nu)\) time. Its output is either \(M_h(D;x,y)\) as a vertex list or an empty output. An empty output implies that this set is absent or has out-volume greater than \(\nu\).
+\end{proposition}
+We discard any output of out-volume greater than \(\nu\). The time bound bounds its list length by \(O_h(\nu)\); stored original degrees permit this test within that time. In a strongly connected graph, every vertex has positive outdegree, so a retained output has at most \(\nu\) vertices. In particular,
+\begin{equation}
+ x\in S,\ y\notin S,\ c_D(S)=h,\ w_D(S)\le\nu
+ \quad\Longrightarrow\quad
+ \text{local search returns a set }A\subseteq S.
+ \label{eq:local-containment}
+\end{equation}
+The returned set contains \(x\), excludes \(y\), and has cut value \(h\). We use Proposition~\ref{prop:local} as a black box. The local procedure for Theorem~\ref{thm:fast} is different and is proved in Section~\ref{sec:recorded-local}.
+
+\subsection{Two spanning trees}
+An out-arborescence rooted at \(r\) is a spanning directed tree in which every vertex other than \(r\) has one entering edge and there is a path from \(r\) to every vertex. Its path to \(v\) is denoted by \(T[r,v]\). An in-arborescence toward \(r\) reverses this definition; its path from \(v\) is \(T[v,r]\). We use \(V(P)\) and \(E(P)\) for the vertex and edge sets of a path \(P\).
+A vertex dominates \(v\) in a graph rooted at \(r\) if it belongs to every \(r\)-to-\(v\) path. Denote the set of such vertices by \(\Dom(v)\), or by \(\Dom_J(v)\) when specifying the rooted graph \(J\).
+
+\begin{proposition}[Tree construction~\cite{GT15}]
+\label{prop:trees}
+If every vertex of \(J\) is reachable from \(r\), two out-arborescences \(T_0,T_1\) can be constructed in \(O(|V(J)|+|E(J)|)\) time with both properties below.
+\begin{enumerate}
+\item For each \(v\), the common edges of \(T_0[r,v]\) and \(T_1[r,v]\) are exactly the edges in every \(r\)-to-\(v\) path.
+\item For every \(u,v\), at least one of
+\[
+ V(T_0[r,u])\cap V(T_1[r,v]),\qquad
+ V(T_0[r,v])\cap V(T_1[r,u])
+\]
+is equal to \(\Dom(u)\cap\Dom(v)\).
+\end{enumerate}
+\end{proposition}
+These are the maximally edge-disjoint and strongly divergent tree properties, respectively; they are stated together in Section~II-D of~\cite{GIK24}. They do not assert that the two trees have disjoint edge sets. For example, if a nonroot vertex has only one outgoing edge in the graph, that edge belongs to both in-arborescences. Applied to \(\rev D\) and reversed back, the first property gives
+\begin{equation}
+ \lambda_D(v,r)\ge2
+ \quad\Longrightarrow\quad
+ E(T_0[v,r])\cap E(T_1[v,r])=\varnothing.
+ \label{eq:tree-paths}
+\end{equation}
+The two-tree algorithm uses only \eqref{eq:tree-paths}. The algorithm with assigned requests also uses the second property in Proposition~\ref{prop:trees}.
+
+\section{Cuts, flows, and graph preparations}
+\label{sec:preparations}
+
+For \(O\subseteq V(D)\) and \(B\subseteq O\), define the minimum cut value with prescribed ordinary membership by
+\begin{equation}
+ \theta_D(O,B)=\min\{c_D(S):S\subseteq V(D),\ S\cap O=B\}.
+ \label{eq:theta}
+\end{equation}
+The empty set and the whole vertex set are allowed. Preserving \eqref{eq:theta} means retaining the smallest cut value for every assignment of the ordinary vertices to the two sides. This preserves every ordered pair flow value between ordinary vertices, since for \(u,v\in O\), \(u\ne v\),
+\[
+ \lambda_D(u,v)=\min_{B\subseteq O:\ u\in B,\ v\notin B}\theta_D(O,B).
+\]
+Proposition~\ref{prop:decomposition} supplies component preservation. The graph preparations below supply the cut preservation \eqref{eq:theta} within each resulting graph.
+
+\subsection{Reversing a flow}
+An integral flow on a unit-capacity graph is a function \(f:E(D)\to\{0,1\}\). Its divergence at \(v\) is the outgoing flow minus the incoming flow:
+\[
+ b(v)=\sum_{e\in E_D(\{v\},V(D))}f(e)-\sum_{e\in E_D(V(D),\{v\})}f(e),
+ \qquad b(Y)=\sum_{v\in Y}b(v).
+\]
+For distinct vertices \(s,r\), an \(s\)-to-\(r\) flow of value \(q\ge0\) has \(b(s)=q\), \(b(r)=-q\), and divergence zero elsewhere. The residual graph used here reverses each edge on which \(f=1\) and retains every other edge. Denote it by \(R\).
+
+\begin{lemma}[Residual cut identity]
+\label{lem:residual}
+For every \(Y\subseteq V(D)\),
+\begin{equation}
+ c_R(Y)=c_D(Y)-b(Y).
+ \label{eq:residual}
+\end{equation}
+For an integer \(q\ge0\), if \(b(Y)\le q\) for every \(Y\), then
+\(\PP_j(D)\preceq\PP_{j-q}(R)\) whenever \(j>q\).
+\end{lemma}
+\begin{proof}
+A used edge leaving \(Y\) ceases to leave \(Y\), and a used edge entering \(Y\) starts to leave \(Y\). Their difference is \(b(Y)\), proving \eqref{eq:residual}. A cut separating two vertices of one \(j\)-edge-connected component has value at least \(j\). The identity bounds its residual value below by \(j-q\). This applies to both directions, proving the partition assertion.
+\end{proof}
+A flow of value at most \(k\) can be found in \(O_k(M)\) time by augmenting along paths. Each augmentation searches the residual graph and takes \(O(M)\) time; integral capacities increase the value by at least one. Each use below starts from a copy of the specified graph or restores that graph before the next flow.
+
+\subsection{Contracting sets of cut value one}
+\label{sec:one-contractions}
+Fix a strongly connected graph \(H\), ordinary vertices \(O\) mutually three-edge-connected, and \(r\in O\). Assume \(|O|\ge2\). Contraction of a vertex set identifies its vertices and keeps every boundary edge, deleting edges whose endpoints become equal.
+
+\begin{lemma}
+\label{lem:one-out}
+In \(\OO(|V(H)|+|E(H)|)\) time one can contract all maximal \(1\)-out sets excluding \(r\). The result \(D\) preserves \(\theta_H(O,B)\) for every \(B\subseteq O\). It has a partition \(V(D)=W\mathbin{\dot\cup}A\), where \(\dot\cup\) denotes disjoint union, such that
+\begin{equation}
+ O\subseteq W,\quad r\in W,\quad
+ \lambda_D(v,r)\ge2\ (v\in W\setminus\{r\}),\quad
+ d_D^+(z)=1\ (z\in A).
+ \label{eq:one-form}
+\end{equation}
+No edge joins two vertices of \(A\). Write \(z\to p(z)\), with \(p(z)\in W\), for the edge leaving \(z\in A\). The size does not increase.
+\end{lemma}
+\begin{proof}
+Add two temporary edges \(r\to v\) for each \(v\ne r\). They do not leave a set excluding \(r\), so they do not change \(\lambda_H(v,r)\); they ensure two paths from \(r\) to \(v\). Proposition~\ref{prop:bases} at threshold two identifies
+\(W_H=\{r\}\cup\{v:\lambda_H(v,r)\ge2\}\)
+as the component of \(r\). Discard the temporary edges.
+
+Put \(L_H=V(H)\setminus W_H\). Every vertex of \(L_H\) belongs to a \(1\)-out set excluding \(r\). Two intersecting such sets have a union of value one: their intersection and union exclude \(r\), and strong connectivity bounds both nonempty cuts below by one in \eqref{eq:submod}. Maximal sets are therefore disjoint. If two maximal sets had an edge between them, their union would have cut value at most one and would contradict maximality. Each maximal set is weakly connected. Indeed, every vertex reaches the tail of its only exit inside the set: a simple path to \(r\) cannot exit and reenter, since it would then use that exit twice. Consequently the maximal sets are exactly the weak components of \(H[L_H]\), found by one graph scan.
+
+Contract them. They contain no ordinary vertex, since every ordinary vertex other than \(r\) has three paths to \(r\). Their exit heads lie in \(W_H\), and there are no edges between contracted sets. This gives \eqref{eq:one-form}; contraction cannot decrease the connectivity to \(r\) of any uncontracted vertex, since each quotient cut expands to a cut of the same value.
+
+For cut preservation, consider a cut side \(Y\) and a contracted set \(C\) that intersects \(Y\). Strong connectivity gives \(c_H(Y\cap C)\ge1\), because \(Y\cap C\) is nonempty and excludes \(r\). Hence
+\[
+ c_H(Y\cup C)\le c_H(Y)+c_H(C)-c_H(Y\cap C)\le c_H(Y).
+\]
+Adding \(C\) changes no ordinary membership. Add every intersected contracted set. The resulting cut is whole on each contracted set and has no greater value. It corresponds to a quotient cut of equal value. Conversely every quotient cut expands with equal value. Taking minima proves \eqref{eq:theta}. All operations have the claimed size and time bounds.
+\end{proof}
+
+\begin{lemma}[One graph for both orientations]
+\label{lem:two-orientations}
+First perform Lemma~\ref{lem:one-out} on \(H\), and then perform its reversed version, contracting maximal \(1\)-in sets excluding \(r\). The result \(D\) satisfies Lemma~\ref{lem:one-out} in each orientation, with sets \(W,A\) depending on the orientation. It preserves \eqref{eq:theta}, is strongly connected, and has size \(O(|V(H)|+|E(H)|)\).
+\end{lemma}
+\begin{proof}
+Only retention of the outgoing conditions after the incoming contractions needs proof. In the first graph, let \(A_0\) be its outdegree-one vertices and \(W_0\) the other vertices. If a contracted \(1\)-in set \(C\) is contained in \(A_0\), independence and strong connectivity give
+\(1=c^-(C)=\sum_{z\in C}d^-(z)\ge|C|\).
+It is a singleton, so contraction changes nothing. Otherwise \(C\) contains a vertex of \(W_0\). A quotient cut containing its image and excluding \(r\) expands to a cut containing that vertex and therefore has outgoing value at least two. Uncontracted vertices of \(W_0\) also retain this bound. Surviving vertices of \(A_0\) still have one outgoing edge, no edges between them, and heads in the new set \(W\). This proves the outgoing conditions. The incoming conditions and cut preservation follow from the reversed application of Lemma~\ref{lem:one-out}. Contraction preserves strong connectivity.
+\end{proof}
+
+\subsection{Small sets}
+\label{sec:small}
+This procedure uses only local search as defined in Proposition~\ref{prop:local}. Fix \(j\ge4\). Let \(D\) be strongly connected, let \(T\subseteq V(D)\), and let the initial current partition on \(T\) preserve \(\PP_j(D)|_T\) and refine \(\PP_{j-1}(D)|_T\). Set \(h=j-1\) and choose an integer \(\nu\ge1\).
+
+Fix an order of \(T\). Every current set inherits this order and its cyclic successor map \(\sigma\); a singleton has itself as successor. Keep a queue of vertices whose successor pair needs processing, initially all vertices in nonsingleton sets. A queue flag prevents duplicate entries. On removing \(x\), read its current successor \(y\). If \(x\ne y\), call local search on \((D,x,y,h,\nu)\) and \((\rev D,x,y,h,\nu)\), and refine by each returned set. After each refinement, queue the sources of all successor changes. If \(x\)'s successor changes during its processing, queue \(x\) again.
+
+\begin{lemma}[Small sets]
+\label{lem:small}
+The procedure takes \(\OO_j(M+a\nu)\) time and preserves \(\PP_j(D)|_T\). At termination every cut with value less than \(j\) that splits a current set satisfies
+\begin{equation}
+ w_D(S)>\nu,\qquad w_{\rev D}(V(D)\setminus S)>\nu.
+ \label{eq:small-exhausted}
+\end{equation}
+The procedure can also refine a partition on a superset of \(T\) by the same cut sides. If that partition initially preserves the \(j\)-edge-connected components on its ground set, it continues to preserve them; the exhaustion guarantee concerns only its restriction to \(T\).
+\end{lemma}
+\begin{proof}
+Every queried pair belongs to one initial set, so its connectivity in both directions is at least \(h\). Every returned cut has value \(h<j\) in its orientation, and therefore preserves \(j\)-edge-connected components. At queue exhaustion every current successor pair has been queried since it became current. If a set \(S\) of value less than \(j\) and out-volume at most \(\nu\) splits a current set, that set's cycle has a transition \(x\in S\), \(y\notin S\). The pair has connectivity at least \(h\), so \(c_D(S)=h\). Equation~\eqref{eq:local-containment} would have separated that pair, a contradiction. Apply the argument to the complement in \(\rev D\) for the second inequality.
+
+For the query count, suppose a current set \(B\) splits, and let \(B_0\) be a child of maximum size. At most \(2|B\setminus B_0|\) successors change. There are at most \(|B\setminus B_0|\) changes with source in \(B_0\), because each uses an old successor outside \(B_0\); the other changes have sources outside \(B_0\). Charge these changes to the vertices outside \(B_0\). Each charged vertex enters a set with at most half its preceding size. Hence the total number of changes and queries is \(O(a\log(a+2))\).
+
+A listed cut side \(S\) refines a partition in \(O(|S|\log(M+2))\) time. First filter its list to the ground set of that partition. Group the retained vertices by their current set labels and inherited order. Detach those vertices from their old cycles, make their new cycles, and leave the unlisted vertices in their remaining cycles. Only vertices in \(S\) or their old predecessors can change successors. Store their old successors before detaching and compare afterward. This scans \(O(|S|)\) entries and uses sorting for the stated time. Labels outside the listed side need no change. Applying the same grouping to any maintained superset partition also scans only the listed side. A local-search output has at most \(\nu\) vertices, so the total bound is \(\OO_j(M+a\nu)\).
+\end{proof}
+
+\section{The two-tree algorithm}
+\label{sec:slow}
+This section proves Theorem~\ref{thm:slow}. Small sets is exactly the procedure of Section~\ref{sec:small}. Its hitting set for large sets is a family of vertex sets of size one or two. Large sets sends two units of flow from each such set to the root.
+
+Fix a graph \(H_i\) from Proposition~\ref{prop:decomposition} with at least two requests. Choose \(r\in T_i\). Apply Lemma~\ref{lem:two-orientations}, obtaining one graph \(D\) for both orientations. In the following construction fix an orientation, write \(V(D)=W\dot\cup A\) as in \eqref{eq:one-form}, and put \(m_D=|E(D)|\) and \(M_D=|V(D)|+|E(D)|\). The ordinary and requested vertices belong to \(W\). Edges with both endpoints in \(W\) are allowed.
+
+\subsection{Selection in a tree}
+\begin{lemma}[Tree selection]
+\label{lem:tree-selection}
+Let \(\mathcal T\) be a tree rooted at \(r\), with nonnegative integer vertex weights \(\alpha(v)\) of total \(A_{\rm tot}\). Given an integer \(b\ge1\), one can select a set \(Z\) containing the root such that
+\[
+ |Z\setminus\{r\}|\le A_{\rm tot}/(b+1),
+ \qquad
+ \sum_{v\in C}\alpha(v)\le b
+ \quad\text{for every component }C\text{ of }\mathcal T-Z.
+\]
+Components ignore edge directions. Selection takes time linear in the tree size.
+\end{lemma}
+\begin{proof}
+Process children before their parent. A vertex adds its weight and its children's remainders. If the sum exceeds \(b\), select the vertex and pass remainder zero; otherwise pass that sum. Each selected vertex accounts for a disjoint group of total weight at least \(b+1\). This proves the number bound before adding the root. The remainder passed by the vertex of a remaining component nearest the root equals that component's weight and is at most \(b\). Adding the root to the selected set only splits components and does not increase the number of selected nonroot vertices.
+\end{proof}
+
+Construct in-arborescences \(\mathcal T_0,\mathcal T_1\) toward \(r\) satisfying \eqref{eq:tree-paths}. Set \(h=j-1\), choose an integer \(\nu\ge8h\), and put
+\[
+ b=\lfloor\nu/(8h)\rfloor,
+ \qquad \alpha(v)=d_D^+(v).
+\]
+Apply Lemma~\ref{lem:tree-selection} to both trees, obtaining \(Z_0,Z_1\). For \(i\in\{0,1\}\), let \(\sigma_i(v)\) be the first selected vertex on \(\mathcal T_i[v,r]\), including \(v\) itself. A traversal computes these labels by giving each selected vertex its own label and every other vertex its parent's label. We have
+\begin{equation}
+ |Z_i\setminus\{r\}|\le\frac{m_D}{b+1}<\frac{8h m_D}{\nu}.
+ \label{eq:Zi-bound}
+\end{equation}
+
+\subsection{Hitting set for large sets}
+For a nonempty vertex set \(K\subseteq V(D)\setminus\{r\}\), define its collective connectivity to \(r\) by
+\begin{equation}
+ \kappa_r(K)=\min_{K\subseteq Y,\ r\notin Y}c_D(Y).
+ \label{eq:kappa}
+\end{equation}
+Equivalently, connect a new source to every vertex of \(K\) with \(|E(D)|+1\) unit edges and take its maximum flow to \(r\). No supply per vertex is specified by this definition.
+
+Include in a family \(\mathcal K\) the singleton sets
+\begin{equation}
+ \{v\}\quad(v\in(Z_0\cup Z_1)\cap(W\setminus\{r\})),
+ \qquad
+ \{p(z)\}\quad(z\in(Z_0\cup Z_1)\cap A,\ p(z)\ne r).
+ \label{eq:singletons}
+\end{equation}
+For distinct \(z,z'\in A\), define
+\[
+ g(z,z')=\sum_{\substack{v\in W\setminus\{r\}:\\
+                \sigma_0(v)=z,\ \sigma_1(v)=z'}}d_D^+(v).
+\]
+Include \(\{z,z'\}\) whenever
+\begin{equation}
+ g(z,z')\ge\frac{\nu}{4h(h-1)}.
+ \label{eq:pair-threshold}
+\end{equation}
+An ordered pair is only a key for this sum; the source set is unordered. Repeated source sets can be discarded.
+
+\begin{lemma}[Number and connectivity of selected sets]
+\label{lem:slow-family}
+The family \(\mathcal K\) has \(O_h(m_D/\nu)\) members, each satisfying \(\kappa_r(K)\ge2\). It can be constructed in \(\OO(M_D)\) time.
+\end{lemma}
+\begin{proof}
+The singleton count follows from \eqref{eq:Zi-bound}; their connectivity follows from \eqref{eq:one-form}. The groups defining \(g\) partition a subset of \(W\), so \(\sum_{z\ne z'}g(z,z')\le m_D\). Equation~\eqref{eq:pair-threshold} bounds the number of selected pairs by \(4h(h-1)m_D/\nu\).
+
+A root-excluding set \(Y\) containing two distinct vertices of \(A\) has cut value at least two. If \(Y\cap W\ne\varnothing\), this follows from \eqref{eq:one-form}. Otherwise the outgoing edge of each of those two vertices leaves \(Y\). This proves the connectivity assertion for pairs.
+
+For construction, make one entry for each \(v\in W\setminus\{r\}\) whose two labels are distinct elements of \(A\). The entry contains the two labels and weight \(d_D^+(v)\). Sort the entries by their labels and sum each group. There are at most \(|W|\) entries, not \(|Z_0||Z_1|\) entries. The two tree computations, traversals, and sorting give the stated time.
+\end{proof}
+
+For \(U\subseteq W\), define
+\begin{equation}
+ X(U)=U\cup\{z\in A:E_D(U,\{z\})\ne\varnothing\}.
+ \label{eq:canonical}
+\end{equation}
+This is one placement of auxiliary vertices that minimizes the outgoing cut with prescribed \(W\)-membership \(U\). To verify it, consider each \(z\in A\) separately. If \(p(z)\in U\), placing \(z\) inside costs zero. If \(p(z)\notin U\), placing it inside costs one, whereas placing it outside costs the number of edges from \(U\) to \(z\). The rule \eqref{eq:canonical} takes a minimum in either case. Edges with both endpoints in \(W\) have a fixed contribution. Moreover,
+\begin{equation}
+ w_D(X(U))\le2\sum_{v\in U}d_D^+(v),
+ \label{eq:canonical-weight}
+\end{equation}
+since each auxiliary vertex added by \eqref{eq:canonical} has an entering edge from \(U\), different auxiliary vertices require different such edges, and each has outdegree one.
+
+\begin{lemma}[Coverage by the two-tree family]
+\label{lem:slow-coverage}
+Suppose \(S=X(U)\) excludes \(r\), has \(c_D(S)=h\), and has \(w_D(S)>\nu\). Then some \(K\in\mathcal K\) is contained in \(S\).
+\end{lemma}
+\begin{proof}
+For either tree, define
+\[
+ B_i(S)=\{v\in S\cap W:\sigma_i(v)\notin S\}.
+\]
+We first prove
+\begin{equation}
+ \sum_{v\in B_i(S)}d_D^+(v)\le hb.
+ \label{eq:ancestor-charge}
+\end{equation}
+The tree induced by \(S\) has at most \(h\) components, because each component has an outgoing parent edge and these edges belong to \(\delta_D^+(S)\). In such a component, every vertex whose selected ancestor lies outside \(S\) is connected to its vertex nearest \(r\) without passing through a selected vertex. All those vertices therefore lie in one component of \(\mathcal T_i-Z_i\), whose weight is at most \(b\). Sum over the at most \(h\) components.
+
+Suppose no selected singleton is contained in \(S\). Then no selected vertex of \(W\) lies in \(S\). Every selected \(z\in A\cap S\) has \(p(z)\notin S\), since otherwise \eqref{eq:singletons} supplies a singleton inside \(S\). There are at most \(h\) such vertices, because their outgoing edges leave \(S\). Call their set \(A_S\).
+
+By \eqref{eq:canonical-weight}, the weight on \(U\) is greater than \(\nu/2\). Remove \(B_0(S)\cup B_1(S)\). Equations~\eqref{eq:ancestor-charge} and the definition of \(b\) leave weight greater than
+\[
+ \nu/2-2hb\ge\nu/4.
+\]
+Every remaining vertex has both labels in \(A_S\), and its two labels differ. Equal labels \(z\) would force both paths to use \(z\to p(z)\), contrary to \eqref{eq:tree-paths}. There are at most \(h(h-1)\) ordered pairs of distinct labels in \(A_S\). One group therefore has weight greater than \(\nu/(4h(h-1))\). Its pair is selected and lies in \(S\).
+\end{proof}
+
+\subsection{Large sets: two units per selected set}
+For a singleton \(K=\{v\}\), prescribe supply two at \(v\). For a pair \(K=\{z,z'\}\subseteq A\), prescribe one at each vertex. Denote the supply function by \(\eta_K\), so \(\sum_v\eta_K(v)=2\). Add a source \(s\) with \(\eta_K(v)\) edges \(s\to v\). A flow of value two to \(r\) exists. For a singleton this follows from \eqref{eq:one-form}. For a pair, a source--root cut whose old-vertex side contains neither supplied vertex pays two source edges; one containing exactly one pays one source edge and at least one old edge by strong connectivity; one containing both pays at least two old edges by Lemma~\ref{lem:slow-family}. Thus every such cut has value at least two.
+
+Find this flow, delete \(s\) and its two edges, and reverse its used edges in \(D\). Denote the result by \(R_K\). The flow divergence on old vertices is
+\(\eta_K(v)-2\one_{v=r}\), where \(\one_{\mathcal A}\) equals one if statement \(\mathcal A\) holds and zero otherwise. Lemma~\ref{lem:residual} gives
+\begin{equation}
+ c_{R_K}(Y)=c_D(Y)-\eta_K(Y)+2\one_{r\in Y},
+ \qquad \eta_K(Y)=\sum_{v\in Y}\eta_K(v).
+ \label{eq:two-residual}
+\end{equation}
+Consequently \(\PP_j(D)\preceq\PP_{j-2}(R_K)\). If \(K\subseteq S\) and \(r\notin S\) with \(c_D(S)=h\), then
+\begin{equation}
+ c_{R_K}(S)=h-2=(j-2)-1.
+ \label{eq:two-witness}
+\end{equation}
+A recursive call satisfying \eqref{eq:request-contract} at threshold \(j-2\), with every request of the current graph still requested, therefore separates every requested pair across this particular cut. The flow, residual construction, and partition refinement cost \(O_j(M_D)\) outside that call.
+
+\subsection{Combining the procedures}
+\begin{algorithm}[Two-tree recursion at threshold \(j\)]
+\label{alg:slow}
+The input is \((D_0,T,j)\), where \(D_0\) is a directed graph and \(T\subseteq V(D_0)\).
+\begin{enumerate}
+\item Apply the cases \(a\le1\), strongly connected components, and \(j\le3\) from Sections~\ref{sec:requests} and~\ref{sec:background}. In the remaining case compute \(Q_{j-1}(D_0,T)\) recursively and the decomposition of Proposition~\ref{prop:decomposition}.
+\item In each graph \(H_i\), initialize a current partition on \(O_i\) by restriction of that preceding partition. If \(|T_i|\le1\), retain this partition. Otherwise choose \(r\in T_i\) and construct the graph of Lemma~\ref{lem:two-orientations}.
+\item Run small sets with cap \(\nu_i\) on the requests \(T_i\), refining the current partition on all of \(O_i\). Construct \(\mathcal K\) in both orientations. For every selected set, perform \eqref{eq:two-residual}, recurse at threshold \(j-2\) with requests \(T_i\), and refine the current partition on \(O_i\) by restriction of the returned partition.
+\item Return the union of the resulting partitions on the ordinary occurrences, translated to the input vertices. Different graphs \(H_i\) receive different partition labels.
+\end{enumerate}
+The cap \(\nu_i\) is specified in the running-time proof below.
+\end{algorithm}
+
+\begin{lemma}[Correctness of Algorithm~\ref{alg:slow}]
+\label{lem:slow-correct}
+Algorithm~\ref{alg:slow} satisfies \eqref{eq:request-contract}.
+\end{lemma}
+\begin{proof}
+Induct on \(j\). The initial cases satisfy the contract. The preceding-threshold partition preserves every \(j\)-edge-connected component. Different decomposition graphs cannot contain vertices of one \(j\)-edge-connected component, by Proposition~\ref{prop:decomposition}. Within a graph, its ordinary \(j\)-edge-connected components are unchanged by preparation. Small sets preserves them. Equations~\eqref{eq:two-residual} and \eqref{eq:request-contract} for the child show that every residual refinement also preserves them, even for ordinary vertices not requested in that child. This proves preservation on every input vertex.
+
+Consider two requests still together after small sets that are not \(j\)-edge-connected. The preceding computation makes them mutually \(h=j-1\)-edge-connected. They therefore admit a cut of value \(h\) separating them in one orientation of \(H_i\). Choose the orientation and the side so that \(r\) is outside, using \eqref{eq:reverse} if needed. Preparation preserves a cut with those ordinary memberships and value \(h\). Replacing its auxiliary membership by \eqref{eq:canonical} cannot increase its value; it cannot decrease below \(h\), because the same two requests remain separated. The resulting set \(S\) splits the current partition. Lemma~\ref{lem:small} gives \(w_D(S)>\nu_i\). Lemma~\ref{lem:slow-coverage} supplies \(K\subseteq S\). Equation~\eqref{eq:two-witness} and exactness on the child's requests separate the pair. Thus the final restriction to \(T\) is exact.
+\end{proof}
+
+\subsection{Running time of the two-tree algorithm}
+\label{sec:slow-time}
+Let \(F_j^{(2)}(M,a)\) be the time for \eqref{eq:request-contract}. We prove
+\begin{equation}
+ F_j^{(2)}(M,a)=\OO_k\!\left(M(a+1)^{1-\epsilon_j}\right),
+ \quad \epsilon_1=\epsilon_2=\epsilon_3=1,
+ \quad \epsilon_j=2^{-\lceil(j-3)/2\rceil}\ (j\ge4).
+ \label{eq:slow-time}
+\end{equation}
+Fix a decomposition graph \(H_i\) with \(a_i\ge2\) requests, put \(M_i=|V(H_i)|+|E(H_i)|\), and let \(e=\epsilon_{j-2}\). Its prepared graph has size \(O(M_i)\). Preparation and the selected family cost \(\OO_k(M_i)\); small sets costs \(\OO_k(M_i+a_i\nu_i)\). There are \(O_j(M_i/\nu_i)\) residual calls, each of size \(O(M_i)\) with the same \(a_i\) requests. Their work, flows, and partition scans total at most
+\begin{equation}
+ \OO_k\!\left(M_i+a_i\nu_i+
+              \frac{M_i^2}{\nu_i}(a_i+1)^{1-e}\right).
+ \label{eq:slow-balance}
+\end{equation}
+Choose
+\[
+ \nu_i=\max\left\{8(j-1),\left\lceil
+                  \frac{M_i}{(a_i+1)^{e/2}}\right\rceil\right\}.
+\]
+The rounding and constant floor add \(O_k(a_i)=O_k(M_i)\) to local work. Substitution in \eqref{eq:slow-balance} gives
+\(\OO_k(M_i(a_i+1)^{1-e/2})\).
+When the selected family is empty there is no residual work; otherwise its counting bound already absorbs integer rounding.
+Summing over the graphs by \eqref{eq:decomposition-sums}, and including the preceding-threshold call, gives
+\[
+ \epsilon_j=\min\{\epsilon_{j-1},\epsilon_{j-2}/2\}.
+\]
+The sequence in \eqref{eq:slow-time} solves this recurrence. This proves \eqref{eq:slow-time}. Taking \(a=n\) and \(M=O(m)\) proves Theorem~\ref{thm:slow}.
+
+\section{Preparation for a decrease of three in the threshold}
+\label{sec:three-preparation}
+The algorithm with assigned requests uses another preparation in each orientation. In this section \(H\) is one decomposition graph, \(O\) is its ordinary set, and \(r\in O\) is a requested root. We retain every ordinary vertex, including those not requested.
+
+First apply Lemma~\ref{lem:one-out} in the chosen orientation. Subdivide every remaining edge \(u\to v\) with \(u,v\in W\) into \(u\to z\to v\), using a new vertex \(z\in A\). Subdivision preserves cuts minimized over the new vertex, and thus preserves \eqref{eq:theta}. Put \(M=|V(D)|+|E(D)|\) for the resulting graph. This graph has only edges between \(W\) and \(A\); each \(z\in A\) has one outgoing edge \(z\to p(z)\in W\). Coalesce edges with the same tail \(v\in W\) and head \(z\in A\), and delete an edge \(v\to z\) if \(p(z)=v\). Delete auxiliary vertices with no incoming edge. These operations preserve the cut function minimized over auxiliary memberships, as follows.
+
+For \(U\subseteq W\), put
+\begin{equation}
+ f(U)=\min_{S\cap W=U}c_D(S)
+     =|\{z\in A:p(z)\notin U,\ E_D(U,\{z\})\ne\varnothing\}|.
+ \label{eq:f}
+\end{equation}
+The equality follows from the placement \eqref{eq:canonical}. Only the existence of an edge from \(U\) to \(z\) matters, proving the coalescing rule. An edge \(v\to z\to v\) never contributes to the right side. A vertex of \(A\) with no predecessor also never contributes. These facts prove the deletion rules. They preserve strong connectivity: coalescing retains every adjacency, and a deleted passage \(v\to z\to v\) does not help reach a different vertex. All retained vertices remain connected by directed paths.
+
+The function \(f\) is submodular. Choose minimizing sides for two sets of \(W\); their intersection and union have the corresponding intersected and united \(W\)-memberships. Apply \eqref{eq:submod} and the defining minima in \eqref{eq:f}. Also,
+\begin{equation}
+ f(U)\ge2\qquad(\varnothing\ne U\subseteq W\setminus\{r\}).
+ \label{eq:f-floor}
+\end{equation}
+This follows from the connectivity floor in \eqref{eq:one-form} and the preservation of the minimized cut function by the simplifications.
+
+\subsection{Finding the maximal sets of value two}
+\label{sec:find-two}
+A maximal set of value two is a nonempty \(C\subseteq W\setminus\{r\}\) satisfying \(f(C)=2\), with no larger such set containing it. Submodularity and \eqref{eq:f-floor} show that two intersecting sets of value two have a union of value two. Thus maximal sets are disjoint. No maximal set contains an ordinary vertex, since its connectivity to \(r\) is at least three. The following lemma gives the construction needed to find these sets; its proof explains the use of the two tree properties.
+
+\begin{lemma}[Construction of maximal sets of value two]
+\label{lem:find-two}
+In the graph of \eqref{eq:f}--\eqref{eq:f-floor}, all maximal sets \(C\) can be found deterministically in \(\OO(M)\) time.
+\end{lemma}
+\begin{proof}
+We give the proof in the reverse orientation to use trees directed away from the root. Denote the reversed graph, for this proof, by \(J\). Its vertices are \(W\dot\cup A\). Each \(z\in A\) has its only entering edge \(p(z)\to z\); its remaining edges have form \(z\to v\), with \(v\in W\). Every nonroot vertex of \(W\) has two edge-disjoint paths from \(r\). Edges entering \(r\) can be omitted in this construction: they affect neither paths starting at \(r\) nor incoming cuts of sets excluding \(r\). They are retained in the graph used after construction.
+
+Compute the two trees of Proposition~\ref{prop:trees} and let \(F_2\) be their union. It contains every edge \(p(z)\to z\) and exactly two edges entering each \(v\in W\setminus\{r\}\). Indeed, the two paths to such a vertex share no edge, so their last edges differ. Hence
+\begin{equation}
+ |E(F_2)|=|A|+2(|W|-1),\quad
+ \lambda_{F_2}(r,v)=d^-_{F_2}(v)=2\quad(v\in W\setminus\{r\}).
+ \label{eq:seed}
+\end{equation}
+Each edge of \(F_2\) entering \(W\) occurs in one tree, and every edge entering \(A\) occurs in both. Dominator sets are unchanged in \(F_2\). For each \(v\), subgraph inclusion and the two tree paths give
+\[
+ \Dom_J(v)\subseteq\Dom_{F_2}(v)
+ \subseteq V(T_0[r,v])\cap V(T_1[r,v])=\Dom_J(v).
+\]
+The last equality is the second tree property with the same vertex twice. Thus the tree properties can also be used in \(F_2\).
+
+For a nonempty \(C\subseteq W\setminus\{r\}\), define
+\[
+ A_2(C)=\{z:p(z)\in C\}
+       \cup\{z:E_{F_2}(\{z\},C)\ne\varnothing\},\qquad
+ Y_2(C)=C\cup A_2(C).
+\]
+No edge entering \(W\) enters \(Y_2(C)\). Consequently
+\begin{equation}
+ c^-_{F_2}(Y_2(C))=|\{z\in A_2(C):p(z)\notin C\}|.
+ \label{eq:seed-cut}
+\end{equation}
+Call \(C\) connected in a tree if, after deleting the vertices of \(W\setminus C\) and retaining the vertices of \(A\), the vertices of \(C\) belong to one weak component. Components containing no vertex of \(C\) are ignored. We claim
+\begin{equation}
+ c^-_{F_2}(Y_2(C))=2
+ \quad\Longleftrightarrow\quad
+ C\text{ is connected in both trees}.
+ \label{eq:two-tree-criterion}
+\end{equation}
+
+For the forward implication, let \(z_0,z_1\) be the two auxiliary vertices whose entering edges form the boundary in \eqref{eq:seed-cut}. The two tree paths to any \(v\in C\) enter through different boundary edges. Neither path can leave and reenter \(Y_2(C)\): it would have to use the other boundary edge, already used by the other path to \(v\). If the paths in \(T_0\) to two vertices \(u,v\in C\) used different boundary vertices, then the two cross-tree intersections in Proposition~\ref{prop:trees} would contain \(z_0\) and \(z_1\), respectively. Neither auxiliary vertex can dominate a vertex of \(W\), since its only entering edge would then belong to every root path, contradicting the two-path floor. This contradicts the second tree property. All paths in one tree therefore enter through the same boundary vertex; their suffixes connect \(C\) inside \(Y_2(C)\). This proves connectivity in both trees.
+
+Conversely, suppose \(C\) is connected in both trees. In tree \(i\), retain \(C\), its auxiliary neighbors, and all auxiliary vertices whose entering edge has tail in \(C\). The component containing \(C\) is an induced subtree excluding \(r\); it has exactly one entering tree edge. Every auxiliary vertex with an edge of tree \(i\) entering \(C\) belongs to that component. An entering tree edge cannot have its head in \(C\), since its auxiliary tail would then be retained. It must therefore be the entering edge of an auxiliary vertex whose predecessor is outside \(C\). Thus each tree contributes one possible boundary auxiliary vertex. Every edge of \(F_2\) entering \(C\) belongs to a tree, so \eqref{eq:seed-cut} is at most two. The floor in \eqref{eq:seed} makes it at least two. This proves \eqref{eq:two-tree-criterion}.
+
+Every incoming cut of value two in \(F_2\) whose side excludes \(r\) and contains a vertex of \(W\) can be enlarged to \(Y_2(C)\), where \(C\) is its intersection with \(W\), without increasing its value or changing \(C\). Add auxiliary vertices whose predecessor or an outgoing neighbor is in \(C\). Adding one with predecessor outside replaces at least one incoming edge by its one entering edge; adding one with predecessor inside cannot increase the cut. An auxiliary vertex already inside with neither predecessor nor outgoing neighbor in \(C\) would contribute an unnecessary entering edge. Removing it would leave a cut below two still containing a vertex of \(W\), which is impossible. Thus the original side is contained in \(Y_2(C)\), and the enlarged cut still has value two.
+
+Start with \(F=F_2\) and a set \(R=\{r\}\) of excluded vertices of \(W\). The maximal subsets of \(W\setminus R\) connected in both trees partition \(W\setminus R\): singletons qualify, and intersecting qualifying sets have a qualifying union. Let \(C_v\) be the current set containing \(v\notin R\). An unused edge is an edge of \(E(J)\setminus E(F)\). Such an edge \(z\to v\) is eligible if
+\begin{equation}
+ v\notin R,\qquad z\notin A_2(C_v).
+ \label{eq:eligible}
+\end{equation}
+Add an eligible edge to \(F\), put \(v\) in \(R\), and recompute the maximal connected sets avoiding the new \(R\). Continue until no eligible edge exists.
+
+The invariant is that the incoming cuts of value two in \(F\) whose sides exclude \(r\) and contain a vertex of \(W\) are exactly those such cuts in \(F_2\) whose sides avoid \(R\). It holds initially. Every current cut containing \(v\) is contained in \(Y_2(C_v)\), by the enlargement statement and maximality. An eligible edge enters every such cut and destroys it. It changes no incoming cut whose side excludes \(v\); adding edges creates no new cut of value two. This proves the invariant. A vertex added to \(R\) now has three entering edges and no incoming cut of value two, hence three paths from \(r\). Previously added vertices retain their paths.
+
+At termination every remaining \(C\) satisfies
+\begin{equation}
+ c_J^-(Y_2(C))=c_{F_2}^-(Y_2(C))=2.
+ \label{eq:actual-two}
+\end{equation}
+Otherwise an edge of \(J\setminus F_2\) would enter \(Y_2(C)\); its head must be in \(C\), and it would be eligible. Conversely, every value-two incoming cut in \(J\) whose side excludes \(r\) and contains a vertex of \(W\) is also one in \(F\), since \(F\subseteq J\) and \eqref{eq:seed} gives the floor two. Its \(W\)-intersection lies in a remaining \(C\). Equation~\eqref{eq:actual-two} makes each remaining \(C\) itself the \(W\)-intersection of such a cut. The remaining sets are therefore exactly the maximal sets of value two requested in the statement, with directions reversed.
+
+For the time bound, the two trees stay fixed. Appendix~\ref{app:implementation} gives a maintenance algorithm for their maximal connected sets and for \eqref{eq:eligible}. It uses \(O(M\log^2(M+2))\) time. Its proof counts both the changes of tree components and the tests of unused edges; it does not perform one flow computation per vertex.
+\end{proof}
+
+\subsection{Contracting the sets of value two}
+\begin{lemma}[Prepared graph for the algorithm with assigned requests]
+\label{lem:three-form}
+In \(\OO(|V(H)|+|E(H)|)\) time one can construct, in either chosen orientation, a strongly connected graph \(D=(W\dot\cup A,E(D))\) of size \(O(|V(H)|+|E(H)|)\), preserving \eqref{eq:theta}, with these properties:
+\begin{enumerate}
+\item Every edge joins \(W\) and \(A\); \(O\subseteq W\); each \(z\in A\) has one outgoing edge \(z\to p(z)\in W\).
+\item Every nonroot vertex of \(W\) has connectivity at least two to \(r\).
+\item With \(f\) defined by \eqref{eq:f}, a nonempty \(U\subseteq W\setminus\{r\}\) satisfies \(f(U)=2\) only if \(U=\{v\}\). Such a vertex \(v\) has exactly two outgoing edges, to distinct vertices \(z_1,z_2\in A\), with \(p(z_1),p(z_2)\ne v\).
+\end{enumerate}
+\end{lemma}
+\begin{proof}
+Construct the bipartite graph preceding Lemma~\ref{lem:find-two}, and find all its maximal sets \(C\) of value two. Construct the quotient from the full bipartite graph, including the edges entering \(r\) in the reversed construction view; do not use the subgraphs \(F_2\) or \(F\) from the proof of Lemma~\ref{lem:find-two} as the quotient input. Contract only the sets' vertices in \(W\), retaining the auxiliary vertices. Coalesce edges from a contracted vertex to the same auxiliary vertex, delete the passages returning to that vertex, and delete auxiliary vertices of indegree zero.
+
+These contractions preserve \eqref{eq:theta}. If \(U\subseteq W\) intersects \(C\), submodularity and \eqref{eq:f-floor} give
+\begin{equation}
+ f(U\cup C)\le f(U)+f(C)-f(U\cap C)\le f(U).
+ \label{eq:two-saturation}
+\end{equation}
+The intersection is nonempty and excludes \(r\), even when \(r\in U\). No \(C\) contains an ordinary vertex. Adding every intersected \(C\) therefore changes no ordinary membership and gives a cut no larger than before. On sets whole on every contracted \(C\), the function \eqref{eq:f} agrees with its quotient version: coalescing retains the existence of a predecessor, and a deleted returning passage contributes zero. Conversely a quotient set expands with the same value. These two directions prove cut preservation. They also retain the floor two and show that every new set of value two expands into an old one. Maximality of the contracted sets forces its \(W\)-intersection to be a singleton. A singleton of value two has two outgoing edges after coalescing and deletion, since \eqref{eq:f} then counts exactly those edges. Their auxiliary heads are distinct and do not return to that singleton. Strong connectivity and the size and time bounds follow from the operations already described and Lemma~\ref{lem:find-two}.
+\end{proof}
+
+For the prepared graph put \(M=|V(D)|+|E(D)|\). Let
+\begin{equation}
+ L=\{v\in W\setminus\{r\}:\lambda_D(v,r)=2\},\quad
+ B=W\setminus L,\quad
+ \wt(v)=1+3d_D^+(v).
+ \label{eq:low-high}
+\end{equation}
+Thus \(\wt(v)=7\) for \(v\in L\), every nonroot vertex of \(B\) has at least three paths to \(r\), and
+\begin{equation}
+ W_{\rm tot}:=\sum_{v\in W\setminus\{r\}}\wt(v)=O(M).
+ \label{eq:weight-total}
+\end{equation}
+The sets \(L,B\) can be read from the construction: the remaining value-two sets become the vertices of \(L\). They need no additional flow computations.
+
+\section{A local procedure that records vertex sets}
+\label{sec:recorded-local}
+The algorithm with assigned requests needs more than the output of Proposition~\ref{prop:local}. This section constructs that additional output. Fix a prepared graph \(D\) from Lemma~\ref{lem:three-form}, its ordinary set \(O\subseteq W\), threshold \(j\ge4\), and distinct requests \(x,y\in O\) satisfying
+\begin{equation}
+ h=j-1,\qquad \lambda_D(x,y)\ge h.
+ \label{eq:recorded-floor}
+\end{equation}
+The root of the preparation remains \(r\); the seed of the local procedure is \(x\), which need not equal \(r\). Define constants
+\[
+ \beta=\binom h2,\qquad C_h=8(h+1),\qquad
+ \nu_0(j)=\max\{6h,\ 4(C_h+2h),\ 28\beta,\ 1\}.
+\]
+Choose an integer \(\nu\ge\nu_0(j)\). All weights \(\wt\) in this section are the original weights from \eqref{eq:low-high}, even during path reversals.
+
+\begin{lemma}[Local procedure with recorded sets]
+\label{lem:recorded}
+After \(O(M)\) initialization shared among all queries on \(D\), a query with input \((D,x,y,h,\nu)\) costs \(O_j(\nu)\) time. It returns either a listed \(h\)-out set containing \(x\) and excluding \(y\), or a list of \(O_j(1)\) recorded sets \(F\subseteq W\setminus\{r\}\). Each recorded set has \(\wt(F):=\sum_{v\in F}\wt(v)\ge\nu/2\), and their total list length is \(O_j(\nu)\). If the query returns no separating cut, then every set \(S\) with
+\begin{equation}
+ c_D(S)=h,\quad x\in S,\quad y,r\notin S
+ \label{eq:recorded-target}
+\end{equation}
+contains a recorded set \(F\subseteq S\cap W\). Every graph change is undone before returning.
+\end{lemma}
+\begin{proof}
+We first specify the procedure and then prove its guarantee.
+
+A node of its computation has depth \(p\in\{0,\ldots,h\}\). Along the branch to that node, paths starting at \(x\) and ending at \(z_1,\ldots,z_p\) have been reversed in succession. The graph at that node is \(D_p\). Reversal of a directed path changes a cut and an out-volume by minus one at its starting vertex and plus one at its ending vertex. Summing these changes gives, for every \(Y\subseteq V(D)\),
+\begin{align}
+ c_{D_p}(Y)&=c_D(Y)-p\one_{x\in Y}+\sum_{t=1}^p\one_{z_t\in Y},\label{eq:local-cut}\\
+ w_{D_p}(Y)&=w_D(Y)-p\one_{x\in Y}+\sum_{t=1}^p\one_{z_t\in Y}.
+ \label{eq:local-volume}
+\end{align}
+These formulas remain valid for a path of length zero. At single vertices they imply that the sum of positive outdegree increases is at most \(p\).
+
+Run depth-first search from \(x\) in \(D_p\). Depth-first search examines the outgoing edges of a vertex in order, explores an unvisited head before continuing at the preceding vertex, and returns to the preceding vertex when no unexamined outgoing edge remains. Its discovery tree consists of the edges that first reach vertices. Stop the search on the first of these events:
+\begin{enumerate}
+\item It reaches \(y\). If \(p<h\), reverse the discovery path from \(x\) to \(y\), process its child at depth \(p+1\), and undo that reversal. If \(p=h\), stop this branch.
+\item It exhausts without reaching \(y\), after fewer than \(C_h\nu\) edge examinations. Let \(R\) be its reached set. Return \(R\) as a cut and terminate the query after restoring the graph.
+\item It has examined \(C_h\nu\) edges without reaching \(y\). Record discovery of each head before testing this bound. Let \(\mathcal T\) be the discovery tree and \(q(v)\) the number of outgoing edges examined at its vertex \(v\). Thus \(q(V(\mathcal T))=C_h\nu\), with \(q(U)=\sum_{v\in U}q(v)\).
+\end{enumerate}
+If the first and third events coincide, use the first. In the third event, apply the selection rule of Lemma~\ref{lem:tree-selection} with weights \(q\) and bound \(\nu\), without adding the root afterward. It gives a set \(Z\) of size less than \(C_h\), and every component of \(\mathcal T-Z\) has weight at most \(\nu\).
+
+Group these components by adding components to a group until its weight first reaches \(\nu\). Call such a group a completed batch. Each completed batch \(P\) has
+\begin{equation}
+ \nu\le q(P)\le2\nu.
+ \label{eq:batch-weight}
+\end{equation}
+There is at most one unfinished batch, of weight less than \(\nu\). Components of weight zero can be assigned to any batch. There are \(O(C_h)\) batches, and a batch is a vertex set, not necessarily connected. Consider the sets
+\begin{equation}
+ F_0=Z\cap W,\qquad F_P=(P\cup Z)\cap W
+ \quad\text{for every completed batch }P.
+ \label{eq:records}
+\end{equation}
+Record each one that excludes \(r\) and has original weight at least \(\nu/2\). If \(p<h\), process one child for every \(z\in Z\), reversing the discovery path from \(x\) to \(z\), processing that child, and undoing the reversal before the next child. At depth \(h\), stop after recording. Continue all branches unless a separating cut has been returned.
+
+A returned set \(R\) is closed in \(D_p\), contains \(x\), and excludes \(y\). Equations~\eqref{eq:recorded-floor} and \eqref{eq:local-cut} give
+\[
+ h\le c_D(R)=p-\sum_{t=1}^p\one_{z_t\in R}\le p\le h.
+\]
+It is therefore an \(h\)-out set. The search lists at most \(C_h\nu+1\) vertices, and \eqref{eq:local-volume} gives \(w_D(R)<C_h\nu+h\).
+
+Now fix a target \(S\) from \eqref{eq:recorded-target} and suppose no separating cut is returned. Follow a branch whose preceding endpoints all lie outside \(S\). At depth \(p\),
+\begin{equation}
+ c_{D_p}(S)=h-p.
+ \label{eq:remaining-boundary}
+\end{equation}
+If the search reaches \(y\) before depth \(h\), its prescribed child retains this property. At depth \(h\), it cannot reach \(y\), because \(S\) is closed. If the third event has a selected vertex outside \(S\), follow its child; this is possible only when \(p<h\), again because \(S\) is closed at depth \(h\). It remains to prove that the third event with \(Z\subseteq S\) records a set inside \(S\).
+
+If \(q(Z)\ge\nu\), the original outdegree one at vertices of \(A\), the bound \(|Z|<C_h\), and the positive outdegree increase bound give
+\[
+ q(Z\cap A)<C_h+h,\qquad
+ q(Z\cap W)\le\sum_{v\in Z\cap W}d_D^+(v)+h.
+\]
+Consequently
+\[
+ \wt(F_0)\ge3(\nu-C_h-2h)\ge\nu/2.
+\]
+It excludes \(r\) and is contained in \(S\), so it is recorded.
+
+Suppose instead \(q(Z)<\nu\). Each component of the discovery tree induced by vertices outside \(S\) has an entering discovery edge from \(S\). The root \(x\) lies inside \(S\), so these edges exist, are distinct, and are bounded in number by \(h-p\) in \eqref{eq:remaining-boundary}. Since \(Z\subseteq S\), each outside component lies inside one component of \(\mathcal T-Z\). Thus at most \(h\) batches contain an outside vertex. There are more than \(h\) completed batches; otherwise \eqref{eq:batch-weight}, the unfinished batch, and \(q(Z)<\nu\) would give
+\[
+ C_h\nu=q(V(\mathcal T))<(2h+2)\nu,
+\]
+a contradiction. Some completed batch \(P\) is therefore contained in \(S\).
+
+Each vertex of \(P\cap A\) has a discovery parent in \((P\cup Z)\cap W=F_P\). The graph is bipartite throughout path reversals, and the root \(x\) lies in \(W\), so there is no exception at the discovery root. Its parent is in the same remaining component unless it belongs to \(Z\). Distinct vertices have distinct discovery edges. The outdegree increase bound therefore gives
+\[
+ |P\cap A|\le\sum_{v\in F_P}d_D^+(v)+p.
+\]
+Since original auxiliary outdegrees equal one,
+\[
+ q(P\cap A)\le\sum_{v\in F_P}d_D^+(v)+2p,
+ \qquad
+ q(P\cap W)\le\sum_{v\in F_P}d_D^+(v)+p.
+\]
+Together with \(q(P)\ge\nu\), this yields
+\[
+ \wt(F_P)\ge\frac32(\nu-3h)\ge\frac34\nu\ge\nu/2.
+\]
+Thus \(F_P\) is recorded inside \(S\). A branch retaining outside endpoints has at most \(h\) steps, so one of these arguments must apply. This proves coverage.
+
+For work, one node examines at most \(C_h\nu\) edges and discovers at most \(C_h\nu+1\) vertices. Selection, batches, weights, and lists cost \(O_j(\nu)\). Its number of children is less than \(C_h\), its depth is at most \(h\), and each reversed discovery path has \(O_j(\nu)\) edges. The total work and list lengths are \(O_j(\nu)\).
+
+For implementation, initialize outgoing adjacency lists and original degree counters once. An edge reversal removes the edge from its tail's doubly linked outgoing list, swaps its endpoints, and inserts it in the other list, in constant time. A stack undoes these changes before each sibling and every return. Keep discovery records separately for each of the \(h+1\) depths. Use timestamps, or clear only reached vertices, for search marks. A child does not overwrite its parent's discovery paths. These operations implement the stated work without a whole-graph copy or a whole-vertex reset per local query.
+\end{proof}
+
+\section{Hitting the recorded sets and assigning requests}
+\label{sec:assignment}
+Fix one prepared orientation and one group of local queries. Let \(\mathcal F\) be the list of recorded-set occurrences produced by them. Two occurrences with equal vertex sets remain different if they arise from different queries. Store the producing ordered pair \((x,y)\) with each occurrence. Let \(N\) be the number of queries. Lemma~\ref{lem:recorded} gives
+\begin{equation}
+ |\mathcal F|=O_j(N),\qquad
+ \sum_{F\in\mathcal F}|F|=O_j(N\nu),\qquad
+ \wt(F)\ge\nu/2.
+ \label{eq:incidences}
+\end{equation}
+An incidence is a pair consisting of a recorded occurrence and one of its vertices. An incidence list stores these pairs explicitly.
+
+\subsection{A deterministic selection}
+Sampling vertices with probabilities proportional to the weights can be used to hit these sets. We give the deterministic selection, which is the one used in the theorem.
+
+\begin{lemma}[Selection with a demand on vertices of \(L\)]
+\label{lem:greedy}
+There is a deterministic set \(Q\subseteq W\setminus\{r\}\) of size
+\[
+ O_j\!\left(\frac{M}{\nu}\log(|\mathcal F|+2)\right)
+\]
+such that every recorded occurrence \(F\) satisfies
+\begin{equation}
+ Q\cap F\cap B\ne\varnothing
+ \quad\text{or}\quad |Q\cap F\cap L|\ge\beta+1.
+ \label{eq:demand}
+\end{equation}
+It can be found in \(\OO_j(M+\sum_F|F|)\) time. For each occurrence retain either one selected vertex of \(B\cap F\) or \(\beta+1\) selected vertices of \(L\cap F\) that first make \eqref{eq:demand} hold.
+\end{lemma}
+\begin{proof}
+Put \(d=\beta+1\). Initially all occurrences are unfulfilled, meaning that \eqref{eq:demand} fails. For an unfulfilled \(F\), let \(c_F\) count its selected vertices of \(L\). For an unselected vertex \(v\), let its score be the number of unfulfilled occurrences containing it. Select a vertex of maximum score. A vertex in \(B\) fulfills every occurrence containing it; a vertex in \(L\) increments the relevant counters and fulfills an occurrence when its counter reaches \(d\).
+
+Before fulfillment, \(c_F\le\beta\), no selected vertex of \(B\) is in \(F\), and selected vertices of \(L\) have weight seven. Thus
+\begin{equation}
+ \sum_{v\in F\setminus Q}\wt(v)\ge\nu/2-7\beta\ge\nu/4.
+ \label{eq:remaining-weight}
+\end{equation}
+Let \(\mathcal U\) be the current list of unfulfilled occurrences and put
+\(\Phi=\sum_{F\in\mathcal U}(d-c_F)\).
+Then \(\Phi\le d|\mathcal U|\). Interchanging sums in \eqref{eq:remaining-weight} gives
+\[
+ \sum_{v\notin Q}\wt(v)\operatorname{score}(v)
+ \ge(\nu/4)|\mathcal U|\ge\frac{\nu}{4d}\Phi.
+\]
+The total weight of unselected vertices is at most \(W_{\rm tot}\) from \eqref{eq:weight-total}. Hence the maximum score is at least \(\nu\Phi/(4dW_{\rm tot})\). Selecting that vertex decreases \(\Phi\) by at least its score. Starting with \(\Phi=d|\mathcal F|\), multiplicative decrease makes this integer zero after
+\(O_j((M/\nu)\log(|\mathcal F|+2))\) selections. If \(\mathcal F\) is empty, select nothing. Otherwise its weight lower bound implies \(\nu\le2W_{\rm tot}=O(M)\), so rounding adds no extra order of work to the number bound.
+
+Maintain scores in a heap and use the incidence lists. A selected vertex scans its list once. When an occurrence is fulfilled, remove its score contribution from every remaining incident vertex. A partial counter increase makes no other score change. Each incidence is processed a constant number of times, apart from heap logarithms. Retaining the first fulfilling selections requires at most \(d\) vertices per occurrence and fits the same work.
+\end{proof}
+
+\subsection{Source sets of collective connectivity three}
+For a retained \(v\in B\setminus\{r\}\), supply the source set \(Z=\{v\}\). For a retained \(v\in L\), write its two outgoing edges as \(v\to z_1,v\to z_2\), with \(z_t\in A\), and supply
+\begin{equation}
+ Z=\{v,p(z_t)\}\qquad(t\in\{1,2\},\ p(z_t)\ne r).
+ \label{eq:three-sources}
+\end{equation}
+These source sets satisfy \(\kappa_r(Z)\ge3\). This is the definition of \(B\) for a singleton. A root-excluding cut of value at most two containing both distinct vertices \(v,p(z_t)\) would contradict Lemma~\ref{lem:three-form} for a pair.
+
+\begin{lemma}[A source set inside the required cut]
+\label{lem:three-coverage}
+Suppose \(F\subseteq S\cap W\) is a recorded occurrence, \(r\notin S\), and \(c_D(S)=h\). Some source set from its retained selections is contained in \(S\).
+\end{lemma}
+\begin{proof}
+A retained vertex of \(B\) immediately supplies its singleton inside \(S\). Otherwise there are \(\beta+1\) retained vertices of \(L\cap F\). Put \(U=S\cap W\) and
+\[
+ I(U)=\{z\in A:p(z)\notin U,\ E_D(U,\{z\})\ne\varnothing\}.
+\]
+Equation~\eqref{eq:f} gives \(|I(U)|=f(U)\le c_D(S)=h\). If a retained vertex \(v\in L\cap U\) has both \(p(z_1),p(z_2)\) outside \(U\), its two distinct auxiliary neighbors belong to \(I(U)\). Two different such vertices cannot give the same unordered pair: their two-vertex union would have \(f\)-value at most two, contrary to Lemma~\ref{lem:three-form}. There are at most \(\binom{|I(U)|}{2}\le\beta\) such vertices. One of the \(\beta+1\) retained vertices therefore has a neighbor with \(p(z_t)\in U\). Since \(r\notin U\), its pair \eqref{eq:three-sources} is supplied and lies in \(S\).
+\end{proof}
+
+For each recorded occurrence produced by \((x,y)\), assign both requests \(x,y\) to every source set from its retained selections. Merge equal source sets within this group of queries and remove duplicate assigned requests. Let \(T_Z\) be the requests assigned to \(Z\), and put \(a_Z=|T_Z|\). Discard source sets with no assignments before any flow computation. Every retained source set has \(a_Z\ge2\), and
+\begin{equation}
+ t:=|\{Z:T_Z\ne\varnothing\}|=\OO_j(M/\nu),
+ \qquad \sum_Z a_Z=O_j(N).
+ \label{eq:assignment-sums}
+\end{equation}
+The number of source sets is at most twice the number of selected vertices. Each occurrence has \(O_j(1)\) retained selections and therefore \(O_j(1)\) endpoint assignments; summing proves the second bound. Retaining all selections that ever hit an occurrence would not give that bound. Only its first fulfilling selections are used.
+
+\subsection{Large sets: the recursive call with assigned requests}
+For a source set \(Z\), add a vertex \(s\) and \(j\) parallel edges \(s\to z\) for every \(z\in Z\), obtaining \(D^s\). Compute an \(s\)-to-\(r\) flow up to value \(j\). If it reaches \(j\), perform no recursive call for this source set. Otherwise its maximum value \(q\) satisfies
+\begin{equation}
+ 3\le q<j,
+ \label{eq:q-three}
+\end{equation}
+because \(\kappa_r(Z)\ge3\). Reverse the used edges and retain the new source as an auxiliary vertex. Let \(R_Z\) be that residual graph. Recurse at threshold \(\ell=j-q\) with requests \(T_Z\), and refine the current partition on every ordinary vertex by the restriction of \(Q_\ell(R_Z,T_Z)\).
+
+For every \(Y\subseteq V(D^s)\), Lemma~\ref{lem:residual} gives
+\begin{equation}
+ c_{R_Z}(Y)=c_{D^s}(Y)-q\one_{s\in Y}+q\one_{r\in Y}.
+ \label{eq:three-residual}
+\end{equation}
+If a cut separates two old vertices of one \(j\)-edge-connected component, its old-edge contribution is at least \(j\), even when the side contains \(s\). The augmented graph adds a nonnegative contribution. Equation~\eqref{eq:three-residual} leaves its residual value at least \(j-q\). Thus every old \(j\)-edge-connected component remains in one \(\ell\)-component of \(R_Z\), and the global preservation part of \eqref{eq:request-contract} makes this refinement safe for all ordinary vertices.
+
+If \(Z\subseteq S\) for a side in Lemma~\ref{lem:three-coverage}, then
+\begin{equation}
+ c_{D^s}(S\cup\{s\})=h,
+ \qquad
+ c_{R_Z}(S\cup\{s\})=h-q=\ell-1.
+ \label{eq:three-witness}
+\end{equation}
+The first equality implies \(q\le h<j\), so the recursive call is made. If this recorded occurrence was produced by \((x,y)\) as in \eqref{eq:recorded-target}, both endpoints belong to \(T_Z\), and \eqref{eq:three-witness} separates them at threshold \(\ell\). Request-only exactness of the child therefore separates this pair in its output. No claim that the child separates every other pair across \(S\) is needed.
+
+\section{The algorithm with assigned requests}
+\label{sec:fast}
+The two-tree algorithm passes every request to each residual call. The present algorithm passes only the requests assigned in Section~\ref{sec:assignment}. This requires phases: one phase separates its queried pairs, and several phases suffice for every required pair.
+
+\begin{algorithm}[Recursion with assigned requests at threshold \(j\)]
+\label{alg:fast}
+The input and output are \((D_0,T,j)\) and \(Q_j(D_0,T)\) from \eqref{eq:request-contract}.
+\begin{enumerate}
+\item Treat \(a\le1\), strongly connected components, and \(j\le3\) as before. Otherwise compute \(Q_{j-1}(D_0,T)\) recursively and apply Proposition~\ref{prop:decomposition}.
+\item In each graph \(H_i\), restrict the preceding partition to \(O_i\). Retain it without further work when \(a_i:=|T_i|\le1\). Otherwise choose \(r\in T_i\) and apply Lemma~\ref{lem:three-form} to \(H_i\) and to \(\rev H_i\), with the same root and ordinary set. Denote the resulting graphs by \(D_i^+\) and \(D_i^-\). Their auxiliary vertices need not agree. They share the labels of the ordinary vertices.
+\item Perform \(L_i:=\lceil\log_2(a_i+1)\rceil+1\) phases as follows. Fix an order of \(T_i\). At phase start list the successor pairs in the cycle of every current requested set, omitting singleton sets. Keep this list fixed for the phase. For each listed pair \((x,y)\) still together, apply Lemma~\ref{lem:recorded} in both orders \((x,y),(y,x)\) and in both graphs \(D_i^+,D_i^-\), with cap \(\nu_i\). Refine the partition on all \(O_i\) by every returned cut. If the pair has been separated, omit its remaining queries.
+\item At the end of that phase, group the recorded occurrences by orientation, select vertices by Lemma~\ref{lem:greedy}, and assign requests as in Section~\ref{sec:assignment}. Perform the residual calls of \eqref{eq:q-three}--\eqref{eq:three-residual}. Refine the current partition on all \(O_i\) by every returned partition. Then begin the next phase.
+\item Return the resulting ordinary partitions, translated to the vertices of \(D_0\), with different labels for different graphs \(H_i\).
+\end{enumerate}
+The cap \(\nu_i\) is specified in Section~\ref{sec:fast-time}. The two recorded families and their assignments may be discarded after each phase. The prepared graphs are restored after every local query and are the starting graphs for every source-set computation.
+\end{algorithm}
+
+Every queried pair satisfies \eqref{eq:recorded-floor} in its prepared graph. To see this, the restriction of \(Q_{j-1}(D_0,T)\) to \(T\) is exact. Thus two requests in one of its sets are mutually \(h=j-1\)-edge-connected in \(D_0\). For \(h=3\), the ordinary connectivity in \(H_i\) gives the same floor there. For \(h\ge4\), use Proposition~\ref{prop:decomposition} at threshold \(h\). Lemma~\ref{lem:three-form} then preserves their ordered pair values. Later refinements do not merge sets, so these promises persist.
+
+\begin{lemma}[Separation of the phase-start successor pairs]
+\label{lem:phase}
+Every successor pair listed at the start of a phase that is not \(j\)-edge-connected is separated by the end of that phase. Every refinement preserves every \(j\)-edge-connected component on the ordinary vertices.
+\end{lemma}
+\begin{proof}
+A local cut has value \(h<j\), so it preserves \(j\)-edge-connected components. Equations~\eqref{eq:three-residual} and \eqref{eq:request-contract} prove the same for every residual refinement, including ordinary vertices not requested in that residual call.
+
+Consider a listed pair \((x,y)\) that has not been separated during the local queries. Its mutual connectivity is at least \(h\) and less than \(j\), so in one orientation there is a cut of value \(h\) separating it. If that side contains \(r\), take its complement and reverse the orientation. Choose the order of the pair to put the seed inside. This yields a side with the seed inside and the other endpoint and \(r\) outside. Cut preservation \eqref{eq:theta} transfers these ordinary memberships to the corresponding prepared graph without changing the minimum value \(h\). Both orientations and both orders were queried for the pair, since it survived the local work. Lemma~\ref{lem:recorded} therefore gives a recorded occurrence inside this side. Lemma~\ref{lem:three-coverage} gives a contained source set to which both endpoints were assigned. Equation~\eqref{eq:three-witness} and the child's exactness on assigned requests separate the pair. This proves the separation statement.
+\end{proof}
+
+\begin{lemma}[Number of phases]
+\label{lem:phases}
+After \(L_i\) phases the partition is exact on \(T_i\).
+\end{lemma}
+\begin{proof}
+In this proof every current set means a part of the current partition restricted to \(T_i\); these are the sets carrying cycles. Give each requested vertex the label of its class in \(\PP_j(H_i)|_{T_i}\). The initial partition and every phase preserve these classes, by the preceding-threshold contract and Lemma~\ref{lem:phase}. Therefore every current set is a union of these classes. A run in its cycle is a maximal consecutive group of vertices with one label. For a set \(C\), let \(r(C)\) be the number of its runs, putting \(r(C)=1\) if it has only one label.
+
+Suppose a phase-start set \(C\) has more than one label, and let \(C'\subseteq C\) be one of its phase-end sets that still has more than one label. Consecutive runs of \(C\) have different labels. Their boundary successor pair is separated in this phase by Lemma~\ref{lem:phase}. Since \(C'\) contains either all or none of each label class in \(C\), it cannot retain two adjacent runs. The retained runs form a set of nonadjacent vertices in the cycle of the \(r(C)\) old runs. A cycle with \(t\ge2\) vertices has at most \(\lfloor t/2\rfloor\) pairwise nonadjacent vertices: each chosen vertex requires an unchosen successor, and these successors differ. Deleting other runs and merging retained runs of equal label cannot increase their number. Consequently
+\begin{equation}
+ r(C')\le\lfloor r(C)/2\rfloor.
+ \label{eq:run-halving}
+\end{equation}
+Initially \(r(C)\le a_i\). Repeated halving for the prescribed \(L_i\) phases leaves no set with more than one label. Preservation then implies exactness on \(T_i\). The algorithm need not know the labels; they occur only in the proof of the phase count.
+\end{proof}
+
+\begin{lemma}[Correctness of Algorithm~\ref{alg:fast}]
+\label{lem:fast-correct}
+Algorithm~\ref{alg:fast} satisfies \eqref{eq:request-contract}.
+\end{lemma}
+\begin{proof}
+Induct on the threshold. The cases \(j\le3\) and \(a\le1\) satisfy the contract. Strongly connected component separation is valid because paths cannot leave a component and return. The preceding-threshold call preserves all \(j\)-edge-connected components. Proposition~\ref{prop:decomposition} places all ordinary occurrences of one \(j\)-edge-connected component in one graph and preserves their relation there. Lemma~\ref{lem:three-form} preserves every cut minimum with prescribed ordinary memberships. Lemma~\ref{lem:phase} preserves the resulting ordinary \(j\)-edge-connected components in every step. Thus the returned partition preserves \(\PP_j(D_0)\) on all input vertices, even those outside \(T\). Lemma~\ref{lem:phases} proves exactness on the requests inside each graph; requests in different decomposition graphs are already separated and cannot be \(j\)-edge-connected. This proves both parts of \eqref{eq:request-contract}.
+\end{proof}
+
+\subsection{Running time with assigned requests}
+\label{sec:fast-time}
+Let \(F_j^{(3)}(M,a)\) be the time of Algorithm~\ref{alg:fast}. We prove the request-sensitive bound
+\begin{equation}
+ F_j^{(3)}(M,a)=\OO_k\!\left(M(a+1)^{1-e_j}\right),
+ \qquad e_j=\frac1{\lceil j/3\rceil}.
+ \label{eq:fast-time}
+\end{equation}
+This bound applies to the all-vertex output of \eqref{eq:request-contract}; it does not just bound the time to write the requested labels.
+
+Fix one decomposition graph, with \(a_i\ge2\) requests, and let \(M_i\) be the size of \(H_i\) plus the sizes of its two prepared graphs. The sum of the \(M_i\)'s is \(O(M)\). A phase uses at most four queries per phase-start successor pair and therefore \(O(a_i)\) queries. Across all phases, the local work, listed cuts, recorded incidences, and greedy selection take
+\begin{equation}
+ \OO_k(M_i+a_i\nu_i)
+ \label{eq:fast-local-time}
+\end{equation}
+by Lemmas~\ref{lem:recorded} and~\ref{lem:greedy}. Updating the current partition by a listed cut scans only its listed ordinary vertices, as in the proof of Lemma~\ref{lem:small}. Computing the successor lists at phase starts costs \(O(a_i)\) per phase.
+
+Let \(t_i\) be the number of source sets with nonempty assigned requests across all phases and both orientations. Put \(A_i=\sum_Z a_Z\), counting a source set again if it occurs in a different phase. Equation~\eqref{eq:assignment-sums} gives
+\begin{equation}
+ t_i=\OO_k(M_i/\nu_i),\qquad A_i=\OO_k(a_i),\qquad a_Z\ge2.
+ \label{eq:fast-counts}
+\end{equation}
+Skipped source sets can only decrease recursive work.
+
+Assume the lower thresholds have been proved, and put \(e=e_{j-3}\), which lies in \((0,1]\). Every recursive threshold is at most \(j-3\) by \eqref{eq:q-three}. Each residual graph has size \(O_k(M_i)\), including its added source and at most \(2j\) added edges. By the induction bound and concavity of the function \(x\mapsto x^{1-e}\) on positive real numbers,
+\begin{align}
+ \sum_Z \OO_k\bigl(M_i(a_Z+1)^{1-e}\bigr)
+ &\le\OO_k\bigl(M_i t_i^e A_i^{1-e}\bigr)\notag\\
+ &\le\OO_k\!\left(M_i(M_i/\nu_i)^e a_i^{1-e}\right).
+ \label{eq:concavity}
+\end{align}
+For \(0<e<1\), the first inequality is Jensen's inequality applied to \(a_Z+1\); since \(a_Z\ge2\), their sum is at most \(3A_i/2\). For \(e=1\), it is just a bound of \(\OO_k(M_i)\) per call. The \(O_k(M_i)\) flow, graph construction, all-vertex output, and partition scan for each source set are included in this bound, since \((a_Z+1)^{1-e}\ge1\). The same bound pays for source sets skipped at value \(j\) by counting their flow work as a call with the assigned count.
+
+Put
+\begin{equation}
+ \gamma=\frac{e}{1+e},\qquad
+ \nu_i=\max\left\{\nu_0(j),\left\lceil\frac{M_i}{a_i^\gamma}\right\rceil\right\}.
+ \label{eq:fast-cap}
+\end{equation}
+Balancing \eqref{eq:fast-local-time} and \eqref{eq:concavity} gives
+\begin{equation}
+ a_i\nu_i+M_i(M_i/\nu_i)^e a_i^{1-e}
+ =O_k\bigl(M_i a_i^{1-\gamma}\bigr).
+ \label{eq:fast-balanced}
+\end{equation}
+Indeed, ignoring rounding the two exponents of \(a_i\) are
+\(1-\gamma\) and \(\gamma e+1-e=1-\gamma\). Rounding and the floor \(\nu_0(j)\) add only \(O_k(a_i)\le O_k(M_i)\) to the local term, and increasing \(\nu_i\) decreases the recursive term. An empty recorded family makes no source-set call. Otherwise its weight lower bound implies \(M_i/\nu_i=\Omega_k(1)\), so the number bounds absorb integer rounding.
+
+Summing \eqref{eq:fast-balanced} over decomposition graphs uses
+\[
+ \sum_i M_i a_i^{1-\gamma}\le\Bigl(\sum_iM_i\Bigr)(a+1)^{1-\gamma}=O\bigl(M(a+1)^{1-\gamma}\bigr).
+\]
+The preceding-threshold call is included by taking
+\[
+ e_1=e_2=e_3=1,\qquad
+ e_j=\min\left\{e_{j-1},\frac{e_{j-3}}{1+e_{j-3}}\right\}.
+\]
+This recurrence has solution \(e_j=1/\lceil j/3\rceil\). To verify it, put \(d=\lceil j/3\rceil\). For \(j\ge4\), \(\lceil(j-3)/3\rceil=d-1\), so the second expression equals
+\((1/(d-1))/(1+1/(d-1))=1/d\).
+The preceding value \(e_{j-1}\) is at least \(1/d\), proving the recurrence and \eqref{eq:fast-time}. Taking \(a=n\) and \(M=O(m)\) proves Theorem~\ref{thm:fast}.
+
+\section{Implementation conventions and comparison}
+\label{sec:comparison}
+The algorithms are deterministic. For \(4\le k\le5\), the two bounds have the same polynomial factor \(mn^{1/2}\). At \(k=6\), the two-tree bound is \(\OO_k(mn^{3/4})\), whereas the bound with assigned requests is \(\OO_k(mn^{1/2})\). The saving in the second exponent is at least \(3/(k+2)\), since \(1/\lceil k/3\rceil\ge3/(k+2)\); it depends on \(k\).
+
+Only the two-tree algorithm leaves small sets unchanged. Its modifications are the graph preparation, the two tree selections and pair grouping, and the two-unit flow operation. The algorithm with assigned requests replaces the local queries by Lemma~\ref{lem:recorded}, replaces the queue controller by phases, selects from the recorded sets, and assigns queried vertices to the residual calls. The maximal-set preparation uses both properties of Proposition~\ref{prop:trees}. Its time bound uses the construction in Lemma~\ref{lem:find-two}.
+
+For both algorithms the displayed powers in the cap choices need no real-arithmetic model. Each exponent used there is a rational number depending only on \(k\). For a fixed rational \(u/v>0\) and positive integer \(a\), binary search with integer-power comparisons computes \(\lfloor a^{u/v}\rfloor\). It lies between \(a^{u/v}/2\) and \(a^{u/v}\) when \(a^{u/v}\ge1\). Replacing a cap denominator by this integer changes work only by a constant factor depending on \(k\). Power comparisons can stop as soon as a product exceeds the comparison bound. They take \(O_k(\log(M+2))\) word operations and integers of \(O_k(\log(M+2))\) bits.
+
+To express all logarithms using the original \(n\), initially cap each parallel bundle at \(k\). A crossing bundle of size at least \(k\) remains of size \(k\), and a smaller bundle is unchanged. Every cut value truncated at \(k\), hence every component partition up to threshold \(k\), is preserved. Two counting-sort passes by vertex labels perform this operation in \(O(m+n)\) time and leave at most \(kn(n-1)\) edges. Every graph along a recursion branch has size at most a constant depending on \(k\) times that capped input size: every preparation has a linear size bound, every flow adds at most \(2k\) edges, and every recursive step decreases the threshold. Thus its logarithmic factors are \(O_k(\log(n+2))\). The initial input scan is included in the bounds of Theorems~\ref{thm:slow} and~\ref{thm:fast}.
+
+\appendix
+\section{Maintaining the two fixed trees}
+\label{app:implementation}
+This appendix proves the time bound used in Lemma~\ref{lem:find-two}. Use its reversed graph \(J\), trees \(T_0,T_1\), vertex sets \(W,A\), fixed edge set \(F_2\), and excluded set \(R\). Put \(N_J=|W|+|A|\) and \(M_J=|E(J)|\). We show a bound of \(O((N_J+M_J)\log^2(N_J+2))\). The maintained sets are the maximal subsets of \(W\setminus R\) connected in both trees. A color is a label for a set in the maintained partition, not a graph-theoretic condition.
+
+\subsection{Tree components and partition refinement}
+For each color \(C\) and tree \(i\in\{0,1\}\), give an auxiliary vertex \(z\) a copy \((z,C,i)\) joined to all its tree neighbors of color \(C\). Omit copies with no neighbor. A vertex of \(W\setminus R\) has weight one and each auxiliary copy has weight zero. Each fixed tree edge has one endpoint in \(W\). If that endpoint is outside \(R\), the edge belongs to exactly one such representation; otherwise it belongs to none. Splitting auxiliary vertices cannot create a cycle: a cycle would project to a cycle using distinct edges of the original tree. The representations are therefore forests.
+
+Represent each forest component by an Euler-tour sequence: record a traversal that uses each undirected edge once in each direction, with one vertex marker of weight one at each vertex of \(W\) and all other entries of weight zero. A balanced sequence tree stores subtree lengths and sums. Cutting or joining a forest edge uses a constant number of sequence splits, joins, and cyclic rotations. Changing a marker weight and selecting a positive marker by cumulative weight also take \(O(\log(N_J+2))\) time. The total number of active sequence entries is \(O(N_J)\), since \eqref{eq:seed} gives \(O(N_J)\) fixed edges and every retained auxiliary copy has a tree neighbor.
+
+For each color and each tree keep a list with one handle for every component of positive weight. A handle identifies its sequence and total weight. All positive-weight vertices of a component have the same color. Before a cut, join, or weight change, remove the affected handles. Afterward, for each resulting sequence of positive weight, select one positive marker, read its color, and insert its handle. There are a constant number of affected components per operation. Handle maintenance therefore takes \(O(\log(N_J+2))\) time per operation.
+
+Queue a color whenever either of its two lists has more than one handle. A flag prevents duplicate queue entries. On removing a color \(C\) from the queue, clear its queue flag and recheck its two current list counts. If the color is empty or both counts are at most one, discard this entry. Otherwise choose any two positive components in a tree whose list has more than one member. Move the vertices of \(W\) in the component of smaller weight into a new color. If that moved set is \(S\), then
+\begin{equation}
+ |S|\le |C|/2.
+ \label{eq:color-halving}
+\end{equation}
+List its vertices before making any moves. In both forests, zero a moving vertex's marker, cut all its fixed tree incidences, change its color while isolated, restore its weight, and join those incidences to copies of its new color. Remove isolated auxiliary copies. Finish the whole move batch before processing another queued color. Recheck both the old and new colors after the batch.
+
+No set connected in both trees and contained in \(C\) is split by this refinement: in either forest its connecting paths are retained, so it lies in one positive component. Start with all of \(W\setminus\{r\}\) in one color and refine until the color queue is empty. No maximal connected set has been split, and every remaining color is connected in both trees. The partition is therefore exactly the required one. After adding a vertex \(v\) to \(R\), set its marker weight to zero, cut its fixed tree incidences, remove the isolated vertex, and recheck its former color. The remaining maximal sets only refine: any new connected set avoiding \(R\) was contained in an old one. Thus the same refinement procedure applies after every deletion.
+
+Each vertex moves color at most \(\lfloor\log_2|W|\rfloor\) times by \eqref{eq:color-halving}, and is deleted once. Its fixed tree incidences are visited only when it moves or is deleted. Their total is \(O(N_J)\) by \eqref{eq:seed}. Hence there are \(O(N_J\log(N_J+2))\) forest operations, costing \(O(N_J\log^2(N_J+2))\). Listing a moved component costs its number of vertices plus its fixed incidences. Every auxiliary copy in that component has an incidence to a listed vertex of \(W\); its listing cost is charged to those incidences. The same move bound pays for listing. Queue checks are charged to component-handle changes and batch-end checks.
+
+\subsection{Finding eligible edges}
+For an auxiliary vertex \(z\) and a color \(C\), maintain the integer
+\[
+ d(z,C)=\one_{p(z)\in C}
+       +|E_{F_2}(\{z\},C)|.
+\]
+By the definition of \(A_2(C)\),
+\begin{equation}
+ z\in A_2(C)\quad\Longleftrightarrow\quad d(z,C)>0.
+ \label{eq:zero-test}
+\end{equation}
+Under the key \((z,C)\), also keep the list of unused edges \(z\to v\) whose heads belong to \(W\setminus R\) and have color \(C\). An edge in the list under \((z,C)\) is eligible exactly when \(d(z,C)=0\).
+
+After computing the first complete partition, initialize these counts and lists by scanning the fixed and unused edges. Scan the unused edges once more and queue every eligible edge. This initial scan is needed even if the first partition has no refinement.
+
+For a move batch, first update all fixed counts of the moving vertices and then move their incoming unused-edge entries to their new colors. Record all counts that fall to zero. Only after these two steps, scan the lists of the recorded zero counts, and test every moved entry in its new color. For a deleted vertex, remove its fixed counts and discard its unused incoming-edge entries before scanning the zero lists. These orders ensure that eligibility is tested after all fixed neighbors have their final color for that batch.
+
+An old color label only loses vertices. Thus its count \(d(z,C)\) can fall from a positive value to zero at most once. A new color receives all its fixed counts before unused-edge insertion, so an edge is tested upon insertion instead of requiring repeated scans of an empty-count list. An unused edge follows its head through \(O(\log(N_J+2))\) colors. In each visited color, it is tested at insertion and can occur in at most one later zero-count scan. The total number of edge tests is therefore
+\begin{equation}
+ O(M_J\log(N_J+2)).
+ \label{eq:unused-tests}
+\end{equation}
+This bound also covers an auxiliary vertex adjacent to many unused edges: a change at one fixed neighbor updates a keyed count and does not scan all those edges.
+
+For a head in \(W\setminus R\), eligibility is permanent once obtained. Its later color sets are subsets of its preceding ones, and \(A_2\) is monotone under inclusion. Mark an edge at its first enqueue, so it enters the eligible-edge queue at most once. An entry whose head has since been added to \(R\) is discarded. Before treating an empty edge queue as termination, finish all color refinements and their count updates. The initial scan finds initially eligible edges; every later eligible edge is found either at its head's move or at a zero-count event. Thus the queue is complete and implements \eqref{eq:eligible}.
+
+Use balanced dictionaries for keyed counts and edge lists. There are \(O(|W|)\) color labels ever born. Indeed, the nonnegative quantity \(\sum_C(|C|-1)\) decreases by one at a split and never increases at a deletion. Each key lies in a universe of size \(O(N_J^2)\), and dictionary operations cost \(O(\log(N_J+2))\). Fixed-count updates have the fixed-incidence move bound; unused-edge updates have \eqref{eq:unused-tests}. Their work is \(O((M_J+N_J)\log^2(N_J+2))\). Delete a key when both its count and its list are empty. Every retained key then has a fixed incidence or an unused-edge entry, so active storage is \(O(M_J+N_J)\). This proves the implementation bound claimed in Lemma~\ref{lem:find-two}.
+
+\begin{thebibliography}{9}
+\bibitem{GIK24}
+Loukas Georgiadis, Giuseppe F. Italiano, and Evangelos Kosinas.
+\newblock Computing the 3-edge-connected components of directed graphs in linear time.
+\newblock In \emph{Proceedings of FOCS 2024}, 2024.
+\newblock \href{https://doi.org/10.1109/FOCS61266.2024.00015}{doi:10.1109/FOCS61266.2024.00015}.
+
+\bibitem{GKKPP26}
+Loukas Georgiadis, Evangelos Kipouridis, Evangelos Kosinas, Charis Papadopoulos, and Nikos Parotsidis.
+\newblock Computing the \((k+2)\)-Edge-Connected Components in \(k\)-Edge-Connected Digraphs in Subquadratic Time.
+\newblock In \emph{ICALP 2026}, LIPIcs 374, Article 95, 95:1--95:23, 2026.
+\newblock \href{https://doi.org/10.4230/LIPIcs.ICALP.2026.95}{doi:10.4230/LIPIcs.ICALP.2026.95}.
+\newblock Full version: \href{https://arxiv.org/abs/2604.27474}{arXiv:2604.27474}, Sections 5.2 and 6.1.
+
+\bibitem{GT15}
+Loukas Georgiadis and Robert E. Tarjan.
+\newblock Dominator tree certification and divergent spanning trees.
+\newblock \emph{ACM Transactions on Algorithms}, 12(1), Article 11, 2015.
+\newblock \href{https://doi.org/10.1145/2764913}{doi:10.1145/2764913}.
+
+\bibitem{GIP20}
+Loukas Georgiadis, Giuseppe F. Italiano, and Nikos Parotsidis.
+\newblock Strong connectivity in directed graphs under failures, with applications.
+\newblock \emph{SIAM Journal on Computing}, 49(5):865--926, 2020.
+\end{thebibliography}
+\end{document}
